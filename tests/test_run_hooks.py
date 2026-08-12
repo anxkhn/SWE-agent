@@ -169,7 +169,7 @@ def test_swe_bench_evaluate_unsupported_subset_raises_value_error(tmp_path, subs
 
 def test_save_trajectory_hook_writes_to_per_instance_dir(tmp_path):
     hook = SaveTrajectoryHook()
-    hook._output_dir = tmp_path
+    hook.on_init(run=MagicMock(output_dir=tmp_path))
 
     ps = TextProblemStatement(text="Some issue", id="my-instance")
     hook.on_instance_start(index=0, env=MagicMock(), problem_statement=ps)
@@ -187,10 +187,31 @@ def test_save_trajectory_hook_writes_to_per_instance_dir(tmp_path):
     }
 
 
+def test_save_trajectory_hook_pretty_print_false_writes_compact_json(tmp_path):
+    hook = SaveTrajectoryHook(pretty_print=False)
+    hook.on_init(run=MagicMock(output_dir=tmp_path))
+
+    ps = TextProblemStatement(text="Some issue", id="compact-instance")
+    hook.on_instance_start(index=0, env=MagicMock(), problem_statement=ps)
+    result = AgentRunResult(
+        info={"submission": "patch", "exit_status": "submitted"},
+        trajectory=[],
+    )
+    hook.on_instance_completed(result=result)
+
+    traj_path = tmp_path / "compact-instance" / "compact-instance.traj"
+    content = traj_path.read_text()
+    assert "\n" not in content.rstrip("\n")
+    assert json.loads(content) == {
+        "trajectory": [],
+        "info": {"submission": "patch", "exit_status": "submitted"},
+    }
+
+
 def test_save_trajectory_hook_no_problem_statement_is_noop(tmp_path):
     """on_instance_completed must not raise (or write) when no instance started."""
     hook = SaveTrajectoryHook()
-    hook._output_dir = tmp_path
+    hook.on_init(run=MagicMock(output_dir=tmp_path))
 
     hook.on_instance_completed(result=AgentRunResult(info={}, trajectory=[]))
 
@@ -205,7 +226,7 @@ def test_save_trajectory_hook_concurrent_workers_save_to_correct_dirs(tmp_path):
     thread sees its own copy and writes to its own output directory.
     """
     hook = SaveTrajectoryHook()
-    hook._output_dir = tmp_path
+    hook.on_init(run=MagicMock(output_dir=tmp_path))
 
     barrier = threading.Barrier(2)
 
